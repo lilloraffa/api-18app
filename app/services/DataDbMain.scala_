@@ -1,0 +1,148 @@
+package services
+
+import javax.inject.Inject
+
+
+import play.api.db._
+import anorm._
+import model.ModelHome
+import model.KpiView
+import model.KpiViewDouble
+import model.KpiTS
+import java.time.LocalDate
+
+
+class DataDbMain2 @Inject()(db: Database){
+  case class IntDate(value: Int, date: LocalDate)
+  case class DoubleDate(value: Double, date: LocalDate)
+  /*
+   * Retrieve the most udated number of total active users 
+   * (users that have done at least one transaction).
+   * 
+   */
+  def getViewHighLights(kpi_col_name: String): KpiView = {
+    
+    //To be reviewed: build a cache table with this info
+    val parserIntDate: RowParser[IntDate] = Macro.namedParser[IntDate]
+    
+    //Get Last Value
+    val dataLast: List[IntDate] = db.withConnection { implicit connection =>
+      SQL(s"SELECT sum($kpi_col_name) as value, max(day) as date FROM day_aggr")
+   	   .as(parserIntDate.*)
+    }
+    
+    //Get one week ago Value
+    val dataWeekAgo: List[IntDate] = db.withConnection { implicit connection =>
+      SQL(s"""
+        SELECT sum($kpi_col_name) as value, max(day) as date 
+        FROM day_aggr
+        where day <= {lastDate}
+        """)
+        .on("lastDate" ->dataLast(0).date.minusDays(7).toString)
+   	    .as(parserIntDate.*)
+    }
+    
+    //Get one month ago Value
+    val dataMonthAgo: List[IntDate] = db.withConnection { implicit connection =>
+      SQL(s"""
+        SELECT sum($kpi_col_name) as value, max(day) as date 
+        FROM day_aggr
+        where day <= {lastDate}
+        """)
+        .on("lastDate" ->dataLast(0).date.minusDays(30).toString)
+   	    .as(parserIntDate.*)
+    }
+    
+    KpiView(dataLast(0).value, dataWeekAgo(0).value, dataMonthAgo(0).value)
+    
+  }
+  
+  def getViewHighLightsDouble(kpi_col_name: String): KpiViewDouble = {
+    
+    //To be reviewed: build a cache table with this info
+    val parserIntDate: RowParser[DoubleDate] = Macro.namedParser[DoubleDate]
+    
+    //Get Last Value
+    val dataLast: List[DoubleDate] = db.withConnection { implicit connection =>
+      SQL(s"SELECT sum($kpi_col_name) as value, max(day) as date FROM day_aggr")
+        //.on("col_name" -> kpi_col_name)
+   	   .as(parserIntDate.*)
+    }
+    
+    //Get one week ago Value
+    val dataWeekAgo: List[DoubleDate] = db.withConnection { implicit connection =>
+      SQL(s"""
+        SELECT sum($kpi_col_name) as value, max(day) as date 
+        FROM day_aggr
+        where day <= {lastDate}
+        """)
+        .on("lastDate" ->dataLast(0).date.minusDays(7).toString)
+   	    .as(parserIntDate.*)
+    }
+    
+    //Get one month ago Value
+    val dataMonthAgo: List[DoubleDate] = db.withConnection { implicit connection =>
+      SQL(s"""
+        SELECT sum($kpi_col_name) as value, max(day) as date 
+        FROM day_aggr
+        where day <= {lastDate}
+        """)
+        .on("lastDate" ->dataLast(0).date.minusDays(30).toString)
+   	    .as(parserIntDate.*)
+    }
+    
+    KpiViewDouble(dataLast(0).value, dataWeekAgo(0).value, dataMonthAgo(0).value)
+    
+  }
+  
+  /*
+   * Retrieve TimeSeries Data
+   */
+  def getTimeSerie(kpi_col_name: String,
+      dateStart: String = "",
+      dateEnd: String = ""): KpiTS = {
+    
+    val parser: RowParser[IntDate] = Macro.namedParser[IntDate]
+    val dataLast: List[IntDate] = db.withConnection { implicit connection =>
+  	  SQL(s"""
+  	    select day as date, sum($kpi_col_name) as value
+  	    from day_aggr
+  	    group by day
+  	    order by day
+  	    """).as(parser.*)
+    }
+    
+    KpiTS(
+        dataLast.map(x => x.date),
+        dataLast.map(x => x.value)
+    )
+  }
+  
+  def test(kpi_col_name: String,
+      dateStart: String = "",
+      dateEnd: String = ""): KpiViewDouble = {
+    
+    val parser: RowParser[DoubleDate] = Macro.namedParser[DoubleDate]
+    val dataLast: List[DoubleDate] = db.withConnection { implicit connection =>
+  	  SQL(s"""
+  	    select day as date, floor(sum($kpi_col_name)) as value
+  	    from day_aggr
+  	    group by day
+  	    order by day
+  	    """).as(parser.*)
+    }
+    
+    KpiViewDouble(
+        dataLast(0).value,
+        dataLast(0).value,
+        dataLast(0).value
+    )
+  }
+
+  
+  
+  
+  
+
+  
+}

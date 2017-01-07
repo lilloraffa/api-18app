@@ -1,0 +1,56 @@
+package controllers
+
+import javax.inject.Inject
+
+import play.api.Play.current
+import play.api.mvc._
+import play.api.db._
+import play.api.libs.json._
+import play.api.libs.json.Reads._
+import anorm._
+import model.ModelHome
+import model.TestDb
+import model.KpiView
+import model.KpiViewDouble
+import model.KpiTS
+import services.DataDbMain
+
+class DataJsonMain2Ctrl @Inject()(db: Database) extends Controller {
+  
+
+  def getViewHLTotActUser() = Action{
+    implicit val testFormat = Json.format[KpiView]
+    val dataSrv = new DataDbMain(db)
+    
+    val result = dataSrv.getViewHighLights("userNew_num")
+    Ok(Json.toJson(result).as[JsObject] + ("kpi_name" -> Json.toJson("Total Active Users")))
+  }
+  
+  def getViewHLTotValidVal() = Action{
+    implicit val testFormat = Json.format[KpiViewDouble]
+    val dataSrv = new DataDbMain(db)
+    
+    val result = dataSrv.getViewHighLightsDouble("valid_val")
+    //Ok(Json.toJson(result))
+    Ok(Json.toJson(result).as[JsObject] + ("kpi_name" -> Json.toJson("Total Validation")))
+  }
+  
+  def getTSUserNew() = Action{
+    implicit val testFormat = Json.format[KpiTS]
+    val dataSrv = new DataDbMain(db)
+    
+    val result = dataSrv.getTimeSerie("userNew_num")
+    //Ok(Json.toJson(result))
+    Ok(Json.toJson(result).as[JsObject] + ("kpi_name" -> Json.toJson("New User Time Serie")))
+  }
+  
+    def test() = Action{
+    implicit val testFormat = Json.format[KpiViewDouble]
+    val dataSrv = new DataDbMain(db)
+    
+    val result = dataSrv.test("userNew_num")
+    //Ok(Json.toJson(result))
+    Ok(Json.toJson(result).as[JsObject] + ("kpi_name" -> Json.toJson("test")))
+  }
+  
+}

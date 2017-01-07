@@ -1,0 +1,113 @@
+package services
+
+import javax.inject.Inject
+
+
+import play.api.db._
+import anorm._
+import model.ModelHome
+import model.KpiView
+import model.KpiViewDouble
+import model.KpiTS
+import java.time.LocalDate
+
+
+class DataDbMain @Inject()(db: Database){
+  case class IntDate(value: Int, date: LocalDate)
+  case class DoubleDate(value: Double, date: LocalDate)
+  /*
+   * Retrieve the most udated number of total active users 
+   * (users that have done at least one transaction).
+   * 
+   */
+  
+  def getViewHighLights(kpi_col_name: String, table: String, where: String = null): KpiView = {
+    
+    //To be reviewed: build a cache table with this info
+    val parserIntDate: RowParser[DoubleDate] = Macro.namedParser[DoubleDate]
+    
+    //Get Last Value
+    val dataLast: List[DoubleDate] = db.withConnection { implicit connection =>
+      SQL(s"""
+        SELECT sum($kpi_col_name) as value, max(day) as date 
+        FROM $table
+        ${if(!Option(where).getOrElse("").isEmpty) "where " + where else ""}
+        """)
+        //.on("col_name" -> kpi_col_name)
+   	   .as(parserIntDate.*)
+    }
+    
+    //Get one week ago Value
+    val dataWeekAgo: List[DoubleDate] = db.withConnection { implicit connection =>
+      SQL(s"""
+        SELECT sum($kpi_col_name) as value, max(day) as date 
+        FROM $table
+        where day <= {lastDate}
+        """)
+        .on("lastDate" ->dataLast(0).date.minusDays(7).toString)
+   	    .as(parserIntDate.*)
+    }
+    
+    //Get one month ago Value
+    val dataMonthAgo: List[DoubleDate] = db.withConnection { implicit connection =>
+      SQL(s"""
+        SELECT sum($kpi_col_name) as value, max(day) as date 
+        FROM $table
+        where day <= {lastDate}
+        """)
+        .on("lastDate" ->dataLast(0).date.minusDays(30).toString)
+   	    .as(parserIntDate.*)
+    }
+    
+    KpiView(dataLast(0).value, dataWeekAgo(0).value, dataMonthAgo(0).value)
+    
+  }
+  
+  /*
+   * Retrieve TimeSeries Data
+   */
+  def getTimeSerie(kpi_col_name: String,
+      where: String,
+      table: String): KpiTS = {
+    
+    val parser: RowParser[DoubleDate] = Macro.namedParser[DoubleDate]
+    val dataLast: List[DoubleDate] = db.withConnection { implicit connection =>
+  	  SQL(s"""
+  	    select day as date, sum($kpi_col_name) as value
+  	    from $table
+  	    ${if(!Option(where).getOrElse("").isEmpty) "where " + where else ""}
+  	    group by day
+  	    order by day
+  	    """).as(parser.*)
+    }
+    
+    KpiTS(
+        dataLast.map(x => x.date),
+        dataLast.map(x => x.value)
+    )
+  }
+  
+  def getTimeSerie2(kpi_col_name: String,
+      dateStart: String = "",
+      dateEnd: String = "",
+      table: String): KpiTS = {
+    
+    val parser: RowParser[DoubleDate] = Macro.namedParser[DoubleDate]
+    val dataLast: List[DoubleDate] = db.withConnection { implicit connection =>
+  	  SQL(s"""
+  	    select day as date, sum($kpi_col_name) as value
+  	    from $table
+  	    group by day
+  	    order by day
+  	    """).as(parser.*)
+    }
+    
+    KpiTS(
+        dataLast.map(x => x.date),
+        dataLast.map(x => x.value)
+    )
+  }
+  
+
+  
+}
